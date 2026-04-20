@@ -55,7 +55,9 @@ public class World {
         Material mat1 = new Material(app.getAssetManager(),"Common/MatDefs/Misc/Unshaded.j3md");
         mat1.setColor("Color", ColorRGBA.White);
         floor.setMaterial(mat1);
-        floor.setLocalTranslation(0, -20, 0);
+        floor.setLocalTranslation(0, 0, 0);
+        
+        
 
         //Física (masa 0 = estático)
         RigidBodyControl floorPhysics = new RigidBodyControl(0);
