@@ -44,8 +44,10 @@ public class InputHandler {
         app.getInputManager().addMapping(InputMappings.MOVE_RIGHT, new KeyTrigger(KeyInput.KEY_D));
         app.getInputManager().addMapping(InputMappings.P_JUMP, new KeyTrigger(KeyInput.KEY_SPACE));
         
+        //Input switch camara
+        app.getInputManager().addMapping(InputMappings.CAM_SWITCH, new KeyTrigger(KeyInput.KEY_H));
         app.getInputManager().addListener(actionListener,
-                InputMappings.MOVE_FORWARD, InputMappings.MOVE_BACKWARD, InputMappings.MOVE_LEFT, InputMappings.MOVE_RIGHT, InputMappings.P_JUMP);
+                InputMappings.MOVE_FORWARD, InputMappings.MOVE_BACKWARD, InputMappings.MOVE_LEFT, InputMappings.MOVE_RIGHT, InputMappings.P_JUMP,InputMappings.CAM_SWITCH);
         
         
         //Inputs camara
@@ -54,6 +56,7 @@ public class InputHandler {
         app.getInputManager().addMapping(InputMappings.CAM_MOUSE_LEFT, new MouseAxisTrigger(MouseInput.AXIS_X, true));
         app.getInputManager().addMapping(InputMappings.CAM_MOUSE_RIGHT, new MouseAxisTrigger(MouseInput.AXIS_X, false));
         
+
         app.getInputManager().addListener(analogListener,
                 InputMappings.CAM_MOUSE_UP,InputMappings.CAM_MOUSE_DOWN,InputMappings.CAM_MOUSE_LEFT,InputMappings.CAM_MOUSE_RIGHT);
 
@@ -86,6 +89,7 @@ public class InputHandler {
         app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_DOWN);
         app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_LEFT);
         app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_RIGHT);
+        app.getInputManager().deleteMapping(InputMappings.CAM_SWITCH);
         
         app.getFlyByCamera().setEnabled(true);
         app.getInputManager().setCursorVisible(true);

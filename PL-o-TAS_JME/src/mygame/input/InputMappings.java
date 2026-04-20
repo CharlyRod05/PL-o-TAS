@@ -19,4 +19,5 @@ public class InputMappings {
     public static final String CAM_MOUSE_RIGHT = "CAM_MR";
     public static final String CAM_MOUSE_UP    = "CAM_MU";
     public static final String CAM_MOUSE_DOWN  = "CAM_MD";
+    public static final String CAM_SWITCH = "CAM_SWTCH";
 }

@@ -7,11 +7,13 @@ package mygame.states;
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
+import mygame.camera.CameraController;
 import mygame.input.AnalogReceiver;
 import mygame.input.InputHandler;
 import mygame.input.InputMappings;
 import mygame.input.InputReceiver;
-import mygame.player.CameraController;
+import mygame.camera.FirstPersonCamera;
+import mygame.camera.ThirdPersonCamera;
 import mygame.player.Player;
 import mygame.world.World;
 
@@ -22,7 +24,11 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     World world;
     Player player;
     InputHandler inputHandler;
+    boolean firstPerson = true;
     CameraController cameraController;
+    FirstPersonCamera camF;
+    ThirdPersonCamera camT;
+    
 
     @Override
     protected void initialize(Application app) {
@@ -35,7 +41,10 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         player = new Player(app,world.getPhysics());
         this.app.getRootNode().attachChild(player.getNode());
         //creaCamara
-        cameraController = new CameraController(app, () -> player.getPosition());
+        camT = new ThirdPersonCamera(app, () -> player.getPosition());
+        camF = new FirstPersonCamera(app, () -> player.getPosition());
+        
+        cameraController = camF;
         
         inputHandler = new InputHandler(app, this,this);
     }
@@ -65,6 +74,9 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         if (name.equals(InputMappings.MOVE_RIGHT)) {
             player.setRight(isPressed);
         }
+        if ((name.equals(InputMappings.CAM_SWITCH)&& isPressed)){
+            switchCamera();
+        }
     }
     
     @Override
@@ -91,7 +103,15 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     protected void onDisable() {
     }
 
-    
+    private void switchCamera(){
+        if(firstPerson){
+            firstPerson=false;
+            cameraController = camT;
+        }else{
+            firstPerson=true;
+            cameraController = camF;
+        }
+    }
 
     
 }
