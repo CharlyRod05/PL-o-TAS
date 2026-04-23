@@ -12,6 +12,7 @@ import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
+import mygame.physics.CollisionGroups;
 
 /**
  *
@@ -54,6 +55,9 @@ public class Player {
         control.setGravity(30);
 
         control.setPhysicsLocation(new Vector3f(0, 5, 0));
+        
+        control.setCollisionGroup(CollisionGroups.WORLD);
+        control.setCollideWithGroups(CollisionGroups.WORLD | CollisionGroups.BALL);
         
         playerNode.addControl(control);
         bullet.getPhysicsSpace().add(control);

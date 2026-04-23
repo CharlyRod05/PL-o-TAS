@@ -7,6 +7,10 @@ package mygame.states;
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
+import com.jme3.bullet.BulletAppState;
+import mygame.ball.BallFactory;
+import mygame.ball.BallSource;
+import mygame.ball.BallType;
 import mygame.camera.CameraController;
 import mygame.input.AnalogReceiver;
 import mygame.input.InputHandler;
@@ -28,6 +32,8 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     CameraController cameraController;
     FirstPersonCamera camF;
     ThirdPersonCamera camT;
+    BulletAppState physics;
+    BallSource ballSource;
     
 
     @Override
@@ -38,15 +44,36 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         world = new World(app);
         this.app.getRootNode().attachChild(world.getNode());
         //creaPersonaje
-        player = new Player(app,world.getPhysics());
+        physics = world.getPhysics();
+        player = new Player(app,physics);
         this.app.getRootNode().attachChild(player.getNode());
         //creaCamara
         camT = new ThirdPersonCamera(app, () -> player.getPosition());
         camF = new FirstPersonCamera(app, () -> player.getPosition());
         
         cameraController = camF;
-        
+        //crear ballsource
+        initBallSource();
         inputHandler = new InputHandler(app, this,this);
+        
+    }
+    
+    private void initBallSource() {
+        BallFactory factory = new BallFactory(app.getAssetManager());
+
+        ballSource = new BallSource(
+                "MainSource",
+                factory,
+                this.app.getRootNode(),
+                physics.getPhysicsSpace(),
+                BallType.BASIC
+        );
+
+        ballSource.getNode().setLocalTranslation(0f, 8f, 0f);
+        ballSource.setMaxBalls(50);
+        ballSource.setAutoSpawn(true, 0.2f);
+
+        this.app.getRootNode().attachChild(ballSource.getNode());
     }
     
     @Override
@@ -55,6 +82,7 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         cameraController.update(tpf);
         player.setCameraYaw(cameraController.getYaw());
         player.update();
+        ballSource.update(tpf);
     }
     
     @Override

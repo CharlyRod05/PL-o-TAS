@@ -14,6 +14,7 @@ import com.jme3.math.ColorRGBA;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
+import mygame.physics.CollisionGroups;
 
 /**
  *
@@ -61,11 +62,15 @@ public class World {
 
         //Física (masa 0 = estático)
         RigidBodyControl floorPhysics = new RigidBodyControl(0);
+        floorPhysics.setCollisionGroup(CollisionGroups.WORLD);
+        floorPhysics.setCollideWithGroups(CollisionGroups.WORLD | CollisionGroups.BALL);
         //Se añade la fisica al objeto visual
+        
         floor.addControl(floorPhysics);
 
         //Registrar en Bullet
         bulletAppState.getPhysicsSpace().add(floorPhysics);
+        floorPhysics.setRestitution(0.8f);
 
         //Agregar al mundo
         worldNode.attachChild(floor);
