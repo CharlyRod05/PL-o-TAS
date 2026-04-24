@@ -11,6 +11,7 @@ import com.jme3.bullet.control.CharacterControl;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
@@ -33,6 +34,7 @@ public class Player {
     private AnimControl animControl;
     private AnimChannel animChannel;
     private String currentAnim = "";
+    private boolean firstPerson = true;
     
     
     public Player(Application app, BulletAppState bullet) {
@@ -40,8 +42,8 @@ public class Player {
         
         
         //Visual personaje
-        Spatial model = this.app.getAssetManager().loadModel("Models/Jaime/Jaime.j3o");
-        model.setLocalScale(1f);
+        model = this.app.getAssetManager().loadModel("Models/Jaime/Jaime.j3o");
+        model.setLocalScale(2f);
         model.setLocalTranslation(0f, -1.5f, 0f); // ajusta al centro de la cápsula
         playerNode.attachChild(model);
         
@@ -113,6 +115,20 @@ public class Player {
         } else {
             playAnimation("Idle");
         }
+        
+        Quaternion rot = new Quaternion();
+        if (firstPerson) {
+            // El modelo sigue el yaw de la cámara siempre
+            rot.fromAngleAxis(FastMath.PI - cameraYaw, Vector3f.UNIT_Y);
+            model.setLocalRotation(rot);
+        } else {
+            // Solo rota si hay movimiento, hacia donde se mueve
+            if (direction.lengthSquared() > 0f) {
+                float angle = FastMath.atan2(-direction.x, direction.z) + FastMath.PI;
+                rot.fromAngleAxis(-angle + FastMath.PI, Vector3f.UNIT_Y);
+                model.setLocalRotation(rot);
+            }
+        }
 
         control.setWalkDirection(direction.multLocal(speed));
     }
@@ -146,6 +162,10 @@ public class Player {
 
     public void setRight(boolean value) {
         moveRight = value;
+    }
+    
+    public void setFirstPerson(boolean value) {
+        this.firstPerson = value;
     }
 
     private void playAnimation(String name) {

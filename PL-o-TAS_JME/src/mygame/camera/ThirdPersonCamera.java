@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package mygame.camera;
 
 import com.jme3.app.Application;
@@ -26,25 +22,35 @@ public class ThirdPersonCamera extends CameraController {
     @Override
     public void updateMouse(float deltaX, float deltaY) {
         yaw -= deltaX * SENSITIVITY;
-        pitch += deltaY * SENSITIVITY;
-        pitch = FastMath.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+        pitch -= deltaY * SENSITIVITY;
+        pitch = FastMath.clamp(pitch, -FastMath.QUARTER_PI , PITCH_LIMIT);
     }
     
     @Override
     public void update(float tpf) {
         Vector3f target = positionSource.get();
-        // Obtener posicion de referencia (puede ser player, un punto fijo, lo que sea)
-        
 
-        // Convertir yaw y pitch a un vector de direccion
+        // ← Coordenadas esféricas: yaw da la vuelta horizontal,
+        //   pitch inclina arriba/abajo el brazo de la cámara
+        float sinP = FastMath.sin(pitch);
+        float cosP = FastMath.cos(pitch);
+        float sinY = FastMath.sin(yaw);
+        float cosY = FastMath.cos(yaw);
+
         Vector3f camPos = target.add(
-                -FastMath.sin(yaw) * distance, // X — detras en horizontal
-                height, // Y — un poco arriba
-                FastMath.cos(yaw) * distance // Z — detras en profundidad
+                -sinY * distance * cosP, // X
+                sinP * distance + height, // Y
+                cosY * distance * cosP // Z
         );
-        cam.setLocation(camPos);
 
-        cam.lookAt(target.add(0,1,0),Vector3f.UNIT_Y);    
+        cam.setLocation(camPos);
+        cam.lookAt(target.add(0, 1, 0), Vector3f.UNIT_Y);
+    }
+    
+    @Override
+    public void setOrientation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = FastMath.clamp(pitch, -FastMath.QUARTER_PI, PITCH_LIMIT);
     }
     
     

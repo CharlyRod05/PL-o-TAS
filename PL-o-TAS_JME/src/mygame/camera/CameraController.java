@@ -44,4 +44,13 @@ public abstract class CameraController {
     public float getYaw() {
         return yaw;
     }
+    public float getPitch() {
+        return pitch;
+    }
+
+// Permite sincronizar orientación entre cámaras al hacer switch
+    public void setOrientation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = FastMath.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+    }
 }

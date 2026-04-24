@@ -11,6 +11,7 @@ import com.jme3.bullet.BulletAppState;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import mygame.ball.BallFactory;
 import mygame.ball.BallSource;
@@ -147,14 +148,19 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     protected void onDisable() {
     }
 
-    private void switchCamera(){
-        if(firstPerson){
-            firstPerson=false;
+    private void switchCamera() {
+        if (firstPerson) {
+            firstPerson = false;
+            // Le pasamos exactamente hacia donde miraba la primera persona
+            camT.setOrientation(camF.getYaw(), -camF.getPitch());
             cameraController = camT;
-        }else{
-            firstPerson=true;
+        } else {
+            firstPerson = true;
+            // Y viceversa al regresar
+            camF.setOrientation(camT.getYaw(), -camT.getPitch());
             cameraController = camF;
         }
+        player.setFirstPerson(firstPerson);
     }
 
     
