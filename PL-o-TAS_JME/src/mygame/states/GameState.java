@@ -8,6 +8,10 @@ import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.app.state.BaseAppState;
 import com.jme3.bullet.BulletAppState;
+import com.jme3.light.AmbientLight;
+import com.jme3.light.DirectionalLight;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector3f;
 import mygame.ball.BallFactory;
 import mygame.ball.BallSource;
 import mygame.ball.BallType;
@@ -55,6 +59,18 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         //crear ballsource
         initBallSource();
         inputHandler = new InputHandler(app, this,this);
+        
+        
+        // Luz ambiental — ilumina todo parejo
+        AmbientLight ambient = new AmbientLight();
+        ambient.setColor(ColorRGBA.White.mult(0.4f));
+        this.app.getRootNode().addLight(ambient);
+
+        // Luz direccional — simula el sol, da sombras
+        DirectionalLight sun = new DirectionalLight();
+        sun.setDirection(new Vector3f(-0.5f, -1f, -0.5f).normalizeLocal());
+        sun.setColor(ColorRGBA.White.mult(0.8f));
+        this.app.getRootNode().addLight(sun);
         
     }
     

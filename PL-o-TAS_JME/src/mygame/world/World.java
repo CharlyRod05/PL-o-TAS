@@ -11,9 +11,11 @@ import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.control.RigidBodyControl;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector2f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
+import com.jme3.texture.Texture;
 import mygame.physics.CollisionGroups;
 
 /**
@@ -53,8 +55,18 @@ public class World {
         //Se crea el objeto VISUAL del suelo, sin fisica
         Box box = new Box(100f, 0.1f, 100f);
         Geometry floor = new Geometry("floor", box);
-        Material mat1 = new Material(app.getAssetManager(),"Common/MatDefs/Misc/Unshaded.j3md");
-        mat1.setColor("Color", ColorRGBA.White);
+        
+        Material mat1 = new Material(app.getAssetManager(), "Common/MatDefs/Light/Lighting.j3md");
+
+        Texture floorTex = app.getAssetManager().loadTexture("Common/Textures/MissingTexture.png");
+
+        // Tile de la textura para que no se vea estirada en 200x200 unidades
+        floorTex.setWrap(Texture.WrapMode.Repeat);
+        mat1.setTexture("DiffuseMap", floorTex);
+        
+        floor.getMesh().scaleTextureCoordinates(new Vector2f(50f,50f));
+        
+        
         floor.setMaterial(mat1);
         floor.setLocalTranslation(0, 0, 0);
         

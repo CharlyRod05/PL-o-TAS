@@ -1,5 +1,8 @@
 package mygame.player;
 
+import com.jme3.anim.AnimComposer;
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.bullet.BulletAppState;
@@ -11,6 +14,7 @@ import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
 import mygame.physics.CollisionGroups;
 
@@ -24,8 +28,11 @@ public class Player {
     private boolean moveForward, moveBackward, moveLeft, moveRight;
     private float speed = 0.1f;
     private float cameraYaw = 0f;
-    
+    Spatial model;
     CharacterControl control;
+    private AnimControl animControl;
+    private AnimChannel animChannel;
+    private String currentAnim = "";
     
     
     public Player(Application app, BulletAppState bullet) {
@@ -33,18 +40,20 @@ public class Player {
         
         
         //Visual personaje
-        Box box = new Box(0.5f, 1f, 0.5f);
-        Geometry geom = new Geometry("PlayerGeom", box);
-
-        Material mat = new Material(app.getAssetManager(),
-        "Common/MatDefs/Misc/Unshaded.j3md");
-        mat.setColor("Color", ColorRGBA.Red);
-
-        geom.setMaterial(mat);
+        Spatial model = this.app.getAssetManager().loadModel("Models/Jaime/Jaime.j3o");
+        model.setLocalScale(1f);
+        model.setLocalTranslation(0f, -1.5f, 0f); // ajusta al centro de la cápsula
+        playerNode.attachChild(model);
         
-        playerNode.attachChild(geom);
-        
-        
+        animControl = findAnimControl((Node) model);
+        if (animControl != null) {
+            animChannel = animControl.createChannel();
+            animChannel.setAnim("Idle");
+            // Imprime las animaciones disponibles
+            System.out.println("Animaciones: " + animControl.getAnimationNames());
+        } else {
+            System.out.println("No tiene AnimControl tampoco");
+        }
         //FISICA personaje
         CapsuleCollisionShape shape = new CapsuleCollisionShape(0.5f, 1.8f);
 
@@ -92,6 +101,18 @@ public class Player {
         if (direction.lengthSquared() > 0f) {
             direction.normalizeLocal();
         }
+        
+        boolean isMoving = moveForward || moveBackward || moveLeft || moveRight;
+        boolean isOnGround = control.onGround();
+
+        // Lógica de animaciones
+        if (!isOnGround) {
+            playAnimation("JumpStart");
+        } else if (isMoving) {
+            playAnimation("Walk");
+        } else {
+            playAnimation("Idle");
+        }
 
         control.setWalkDirection(direction.multLocal(speed));
     }
@@ -125,5 +146,30 @@ public class Player {
 
     public void setRight(boolean value) {
         moveRight = value;
+    }
+
+    private void playAnimation(String name) {
+        if (currentAnim.equals(name) || animChannel == null) {
+            return;
+        }
+        currentAnim = name;
+        animChannel.setAnim(name);
+    }
+    
+    private AnimControl findAnimControl(Node node) {
+        AnimControl control = node.getControl(AnimControl.class);
+        if (control != null) {
+            return control;
+        }
+
+        for (Spatial child : node.getChildren()) {
+            if (child instanceof Node) {
+                AnimControl found = findAnimControl((Node) child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
     }
 }
