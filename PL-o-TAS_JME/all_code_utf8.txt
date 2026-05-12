@@ -1,0 +1,1344 @@
+﻿
+
+--- File: src\mygame\Main.java ---
+package mygame;
+
+import com.jme3.app.SimpleApplication;
+import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.renderer.RenderManager;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.shape.Box;
+import mygame.states.GameState;
+
+/**
+ * This is the Main Class of your Game. You should only do initialization here.
+ * Move your Logic into AppStates or Controls
+ * @author normenhansen
+ */
+public class Main extends SimpleApplication {
+
+    public static void main(String[] args) {
+        Main app = new Main();
+        app.start();
+    }
+
+    @Override
+    public void simpleInitApp() {
+        stateManager.attach(new GameState());
+    }
+}
+
+
+
+--- File: src\mygame\ball\AbstractBall.java ---
+package mygame.ball;
+
+import com.jme3.asset.AssetManager;
+import com.jme3.bullet.PhysicsSpace;
+import com.jme3.bullet.collision.shapes.SphereCollisionShape;
+import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.math.Vector3f;
+import com.jme3.scene.Node;
+import mygame.physics.CollisionGroups;
+
+/**
+ *
+ * @author rodri
+ */
+public abstract class AbstractBall {
+
+    protected Node ballNode;
+    protected RigidBodyControl physicsControl;
+    protected final float radius;
+    protected final float mass;
+    protected final AssetManager assetManager;
+    
+    public AbstractBall(String name, AssetManager assetManager,
+            float radius, float mass) {
+        this.assetManager = assetManager;
+        this.radius = radius;
+        this.mass = mass;
+        this.ballNode = new Node(name);
+
+        buildGeometry();
+        buildPhysics();
+    }
+    protected abstract void buildGeometry();
+
+    private void buildPhysics() {
+        SphereCollisionShape shape = new SphereCollisionShape(radius);
+        physicsControl = new RigidBodyControl(shape, mass);
+
+        physicsControl.setRestitution(0.8f);
+        physicsControl.setFriction(0.0f);
+
+        ballNode.addControl(physicsControl);
+
+        physicsControl.setCollisionGroup(CollisionGroups.BALL);
+        physicsControl.setCollideWithGroups(CollisionGroups.WORLD);
+    }
+
+    public void addToPhysicsSpace(PhysicsSpace space) {
+        space.add(physicsControl);
+    }
+
+    public void setSpawnPosition(Vector3f position) {
+        physicsControl.setPhysicsLocation(position);
+        physicsControl.setLinearVelocity(Vector3f.ZERO);
+        physicsControl.setAngularVelocity(Vector3f.ZERO);
+    }
+
+    public void destroy(PhysicsSpace space, Node parentNode) {
+        space.remove(physicsControl);
+        parentNode.detachChild(ballNode);
+    }
+
+    public Node getNode() {
+        return ballNode;
+    }
+
+    public RigidBodyControl getPhysicsControl() {
+        return physicsControl;
+    }
+
+    public float getRadius() {
+        return radius;
+    }
+
+    public abstract BallType getType();
+}
+
+
+
+--- File: src\mygame\ball\BallFactory.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.ball;
+
+import com.jme3.asset.AssetManager;
+
+/**
+ *
+ * @author rodri
+ */
+public class BallFactory {
+    private final AssetManager assetManager;
+
+    public BallFactory(AssetManager assetManager) {
+        this.assetManager = assetManager;
+    }
+
+    public AbstractBall create(BallType type) {
+        switch (type) {
+            case BASIC:
+                return new BasicBall(assetManager);
+            // case HEAVY:
+            //     return new HeavyBall(assetManager);
+            // case BOUNCY:
+            //     return new BouncyBall(assetManager);
+            default:
+                throw new IllegalArgumentException(
+                    "BallFactory: tipo de pelota desconocido â†’ " + type);
+        }
+    }
+}
+
+
+
+--- File: src\mygame\ball\BallSource.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.ball;
+
+import com.jme3.bullet.PhysicsSpace;
+import com.jme3.math.Vector3f;
+import com.jme3.scene.Node;
+import java.util.ArrayList;
+import java.util.Iterator;
+import java.util.List;
+
+/**
+ *
+ * @author rodri
+ */
+public class BallSource {
+    private final Node sourceNode;          // â† interno, como playerNode
+    private final BallFactory  factory;
+    private final Node         parentNode;
+    private final PhysicsSpace physicsSpace;
+
+    private BallType ballType;
+    private int      maxBalls      = 10;
+    private boolean  autoSpawn     = false;
+    private float    spawnInterval = 2.0f;
+
+    private final List<AbstractBall> activeBalls    = new ArrayList<>();
+    private float timeSinceLastSpawn = 0f;
+    
+    public BallSource(String name,
+            BallFactory factory,
+            Node worldNode,
+            PhysicsSpace physicsSpace,
+            BallType ballType) {
+        this.sourceNode = new Node(name);
+        this.factory = factory;
+        this.parentNode = worldNode;
+        this.physicsSpace = physicsSpace;
+        this.ballType = ballType;
+    }
+    
+    
+    public AbstractBall spawnBall() {
+        if (activeBalls.size() >= maxBalls) {
+            return null;
+        }
+
+        AbstractBall ball = factory.create(ballType);
+
+        parentNode.attachChild(ball.getNode());
+        ball.addToPhysicsSpace(physicsSpace);
+
+        // Toma la posiciÃ³n mundial del sourceNode
+        Vector3f spawnPos = sourceNode.getWorldTranslation().clone();
+        ball.setSpawnPosition(spawnPos);
+
+        activeBalls.add(ball);
+        return ball;
+    }
+    public void destroyBall(AbstractBall ball) {
+        ball.destroy(physicsSpace, parentNode);
+        activeBalls.remove(ball);    
+    }
+    public void destroyAll() {
+        Iterator<AbstractBall> it = activeBalls.iterator();
+        while (it.hasNext()) {
+            it.next().destroy(physicsSpace, parentNode);
+            it.remove();
+        }
+    }
+
+    public void update(float tpf) {
+        if (!autoSpawn) {
+            return;
+        }
+        timeSinceLastSpawn += tpf;
+        if (timeSinceLastSpawn >= spawnInterval) {
+            spawnBall();
+            timeSinceLastSpawn = 0f;
+        }
+    }
+
+    public Node getNode() {
+        return sourceNode;
+    }
+
+    public BallSource setAutoSpawn(boolean enabled, float intervalSeconds) {
+        this.autoSpawn = enabled;
+        this.spawnInterval = intervalSeconds;
+        timeSinceLastSpawn = 0f;
+        return this;
+    }
+
+    public BallSource setMaxBalls(int max) {
+        this.maxBalls = max;
+        return this;
+    }
+
+    public BallSource setBallType(BallType type) {
+        this.ballType = type;
+        return this;
+    }
+
+    public int getActiveBallCount() {
+        return activeBalls.size();
+    }
+
+    public List<AbstractBall> getActiveBalls() {
+        return activeBalls;
+    }
+}
+
+
+
+
+--- File: src\mygame\ball\BallType.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Enum.java to edit this template
+ */
+package mygame.ball;
+
+/**
+ * Enum que identifica a los tipos de pelotas
+ * @author rodri
+ */
+
+public enum BallType {
+    BASIC
+    // HEAVY
+    // BOUNCY
+}
+
+
+
+--- File: src\mygame\ball\BasicBall.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.ball;
+
+import com.jme3.asset.AssetManager;
+import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.shape.Sphere;
+
+/**
+ *
+ * @author rodri
+ */
+public class BasicBall extends AbstractBall{
+    private static final float DEFAULT_RADIUS = 0.3f;
+    private static final float DEFAULT_MASS   = 1.0f;
+    
+    public BasicBall(AssetManager assetManager) {
+        super("BasicBall", assetManager, DEFAULT_RADIUS, DEFAULT_MASS);
+    }
+    
+    @Override
+    protected void buildGeometry() {
+        Sphere mesh = new Sphere(20, 20, radius);
+        mesh.setTextureMode(Sphere.TextureMode.Projected);
+
+        Geometry geom = new Geometry("BasicBallGeom", mesh);
+
+        Material mat = new Material(assetManager,
+                "Common/MatDefs/Light/Lighting.j3md");
+        mat.setBoolean("UseMaterialColors", true);
+        mat.setColor("Diffuse",  ColorRGBA.Blue);
+        mat.setColor("Ambient",  ColorRGBA.Blue.mult(0.3f));
+        mat.setColor("Specular", ColorRGBA.White);
+        mat.setFloat("Shininess", 64f);
+        geom.setMaterial(mat);
+
+        ballNode.attachChild(geom); // â† ballNode interno, como playerNode en tu Player
+    }
+
+    @Override
+    public BallType getType() { return BallType.BASIC; }
+}
+
+
+
+
+--- File: src\mygame\camera\CameraController.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.camera;
+
+import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
+import com.jme3.renderer.Camera;
+import java.util.function.Supplier;
+
+/**
+ *
+ * @author rodri
+ */
+public abstract class CameraController {
+    // Atributos comunes a todas las camaras
+
+    protected final Camera cam;
+    protected final Supplier<Vector3f> positionSource;
+    protected float yaw = 0f;
+    protected float pitch = 0f;
+
+    // Constantes comunes
+    protected static final float SENSITIVITY = 2.5f;
+    protected static final float PITCH_LIMIT = FastMath.HALF_PI - 0.05f;
+
+    // Constructor comun, ninguna subclase necesita repetir esto
+    public CameraController(Application app, Supplier<Vector3f> positionSource) {
+        this.cam = ((SimpleApplication) app).getCamera();
+        this.positionSource = positionSource;
+    }
+
+    // Obligatorio â€” cada camara decide como posicionarse y orientarse
+    public abstract void update(float tpf);
+
+    // Opcional â€” solo las camaras que usan raton lo sobreescriben
+    public void updateMouse(float deltaX, float deltaY) {
+    }
+
+    // Comun a todas â€” GameState lo usa para orientar el movimiento del player
+    public float getYaw() {
+        return yaw;
+    }
+    public float getPitch() {
+        return pitch;
+    }
+
+// Permite sincronizar orientaciÃ³n entre cÃ¡maras al hacer switch
+    public void setOrientation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = FastMath.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+    }
+}
+
+
+
+--- File: src\mygame\camera\FirstPersonCamera.java ---
+package mygame.camera;
+
+import com.jme3.app.Application;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
+import java.util.function.Supplier;
+
+/**
+ *
+ * @author rodri
+ */
+public class FirstPersonCamera extends CameraController{ 
+    private static final float EYE_HEIGHT   = 1.6f;
+    
+    public FirstPersonCamera(Application app, Supplier<Vector3f> positionSource) {
+        super(app,positionSource);
+    }
+        // GameState llama esto cuando hay movimiento de raton
+    @Override
+    public void updateMouse(float deltaX, float deltaY) {
+        yaw   -= deltaX * SENSITIVITY;
+        pitch += deltaY * SENSITIVITY;
+        pitch  = FastMath.clamp(pitch, -PITCH_LIMIT, PITCH_LIMIT);
+    }
+    
+        // GameState llama esto cada frame
+    @Override
+    public void update(float tpf) {
+        // Obtener posicion de referencia (puede ser player, un punto fijo, lo que sea)
+        Vector3f eyePos = positionSource.get().add(0f, EYE_HEIGHT, 0f);
+        cam.setLocation(eyePos);
+
+        // Convertir yaw y pitch a un vector de direccion
+        float cosP = FastMath.cos(pitch);
+        Vector3f lookDir = new Vector3f(
+             FastMath.sin(yaw) * cosP,
+             FastMath.sin(pitch),
+            -FastMath.cos(yaw) * cosP
+        );
+
+        cam.lookAtDirection(lookDir, Vector3f.UNIT_Y);
+    } 
+}
+
+
+
+--- File: src\mygame\camera\ThirdPersonCamera.java ---
+package mygame.camera;
+
+import com.jme3.app.Application;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
+import java.util.function.Supplier;
+
+
+/**
+ *
+ * @author rodri
+ */
+public class ThirdPersonCamera extends CameraController {
+    private final float distance = 5f;
+    private final float height   = 2f;
+    
+    
+    public ThirdPersonCamera(Application app, Supplier<Vector3f> positionSource) {
+        super(app, positionSource);
+    }
+    
+    @Override
+    public void updateMouse(float deltaX, float deltaY) {
+        yaw -= deltaX * SENSITIVITY;
+        pitch -= deltaY * SENSITIVITY;
+        pitch = FastMath.clamp(pitch, -FastMath.QUARTER_PI , PITCH_LIMIT);
+    }
+    
+    @Override
+    public void update(float tpf) {
+        Vector3f target = positionSource.get();
+
+        // â† Coordenadas esfÃ©ricas: yaw da la vuelta horizontal,
+        //   pitch inclina arriba/abajo el brazo de la cÃ¡mara
+        float sinP = FastMath.sin(pitch);
+        float cosP = FastMath.cos(pitch);
+        float sinY = FastMath.sin(yaw);
+        float cosY = FastMath.cos(yaw);
+
+        Vector3f camPos = target.add(
+                -sinY * distance * cosP, // X
+                sinP * distance + height, // Y
+                cosY * distance * cosP // Z
+        );
+
+        cam.setLocation(camPos);
+        cam.lookAt(target.add(0, 1, 0), Vector3f.UNIT_Y);
+    }
+    
+    @Override
+    public void setOrientation(float yaw, float pitch) {
+        this.yaw = yaw;
+        this.pitch = FastMath.clamp(pitch, -FastMath.QUARTER_PI, PITCH_LIMIT);
+    }
+    
+    
+    
+}
+
+
+
+--- File: src\mygame\goal\Goal.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.goal;
+
+/**
+ *
+ * @author rodri
+ */
+public class Goal {
+    
+}
+
+
+
+--- File: src\mygame\input\AnalogReceiver.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Interface.java to edit this template
+ */
+package mygame.input;
+
+/**
+ *
+ * @author rodri
+ */
+public interface AnalogReceiver {
+    void onAnalog(String name, float value);
+}
+
+
+
+--- File: src\mygame\input\InputHandler.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.input;
+
+import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
+import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
+import com.jme3.input.controls.ActionListener;
+import com.jme3.input.controls.AnalogListener;
+import com.jme3.input.controls.KeyTrigger;
+import com.jme3.input.controls.MouseAxisTrigger;
+
+/**
+ *
+ * @author rodri
+ */
+public class InputHandler {
+    
+    SimpleApplication app;
+    InputReceiver iRec;
+    AnalogReceiver anRec;
+    
+    
+    public InputHandler(Application app, InputReceiver iRec, AnalogReceiver anRec) {
+        this.app = (SimpleApplication) app;
+        this.iRec = iRec;
+        this.anRec = anRec;
+
+        initInput();
+    }
+    
+    private void initInput(){
+        app.getFlyByCamera().setEnabled(false);          // â† apagar cÃ¡mara nativa
+        app.getInputManager().setCursorVisible(false);   // â† ocultar cursor
+        
+        
+        //Inputs player
+        app.getInputManager().addMapping(InputMappings.MOVE_FORWARD, new KeyTrigger(KeyInput.KEY_W));
+        app.getInputManager().addMapping(InputMappings.MOVE_BACKWARD, new KeyTrigger(KeyInput.KEY_S));
+        app.getInputManager().addMapping(InputMappings.MOVE_LEFT, new KeyTrigger(KeyInput.KEY_A));
+        app.getInputManager().addMapping(InputMappings.MOVE_RIGHT, new KeyTrigger(KeyInput.KEY_D));
+        app.getInputManager().addMapping(InputMappings.P_JUMP, new KeyTrigger(KeyInput.KEY_SPACE));
+        
+        //Input switch camara
+        app.getInputManager().addMapping(InputMappings.CAM_SWITCH, new KeyTrigger(KeyInput.KEY_H));
+        app.getInputManager().addListener(actionListener,
+                InputMappings.MOVE_FORWARD, InputMappings.MOVE_BACKWARD, InputMappings.MOVE_LEFT, InputMappings.MOVE_RIGHT, InputMappings.P_JUMP,InputMappings.CAM_SWITCH);
+        
+        
+        //Inputs camara
+        app.getInputManager().addMapping(InputMappings.CAM_MOUSE_UP, new MouseAxisTrigger(MouseInput.AXIS_Y, false));
+        app.getInputManager().addMapping(InputMappings.CAM_MOUSE_DOWN, new MouseAxisTrigger(MouseInput.AXIS_Y, true));
+        app.getInputManager().addMapping(InputMappings.CAM_MOUSE_LEFT, new MouseAxisTrigger(MouseInput.AXIS_X, true));
+        app.getInputManager().addMapping(InputMappings.CAM_MOUSE_RIGHT, new MouseAxisTrigger(MouseInput.AXIS_X, false));
+        
+
+        app.getInputManager().addListener(analogListener,
+                InputMappings.CAM_MOUSE_UP,InputMappings.CAM_MOUSE_DOWN,InputMappings.CAM_MOUSE_LEFT,InputMappings.CAM_MOUSE_RIGHT);
+
+    }
+    
+    private final ActionListener actionListener = new ActionListener() {
+            @Override
+            public void onAction(String name, boolean isPressed, float tpf){
+                iRec.onAction(name,isPressed);
+            }
+    };
+    
+    private final AnalogListener analogListener = new AnalogListener() {
+            @Override
+            public void onAnalog(String name, float value, float tpf) {
+                anRec.onAnalog(name, value);
+            }
+    };
+    
+    public void cleanup() {
+        app.getInputManager().removeListener(actionListener);
+        app.getInputManager().removeListener(analogListener);
+
+        app.getInputManager().deleteMapping(InputMappings.MOVE_FORWARD);
+        app.getInputManager().deleteMapping(InputMappings.MOVE_BACKWARD);
+        app.getInputManager().deleteMapping(InputMappings.MOVE_LEFT);
+        app.getInputManager().deleteMapping(InputMappings.MOVE_RIGHT);
+        app.getInputManager().deleteMapping(InputMappings.P_JUMP);
+        app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_UP);
+        app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_DOWN);
+        app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_LEFT);
+        app.getInputManager().deleteMapping(InputMappings.CAM_MOUSE_RIGHT);
+        app.getInputManager().deleteMapping(InputMappings.CAM_SWITCH);
+        
+        app.getFlyByCamera().setEnabled(true);
+        app.getInputManager().setCursorVisible(true);
+    }
+}
+
+
+
+--- File: src\mygame\input\InputMappings.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.input;
+
+/**
+ *
+ * @author rodri
+ */
+public class InputMappings {
+    public static final String MOVE_FORWARD = "Forward";
+    public static final String MOVE_BACKWARD = "Backward";
+    public static final String MOVE_LEFT = "Left";
+    public static final String MOVE_RIGHT = "Right";
+    public static final String P_JUMP = "Jump";
+    
+    public static final String CAM_MOUSE_LEFT  = "CAM_ML";
+    public static final String CAM_MOUSE_RIGHT = "CAM_MR";
+    public static final String CAM_MOUSE_UP    = "CAM_MU";
+    public static final String CAM_MOUSE_DOWN  = "CAM_MD";
+    public static final String CAM_SWITCH = "CAM_SWTCH";
+}
+
+
+
+--- File: src\mygame\input\InputReceiver.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Interface.java to edit this template
+ */
+package mygame.input;
+
+/**
+ *
+ * @author rodri
+ */
+public interface InputReceiver {
+    void onAction(String name, boolean isPressed);
+}
+
+
+
+--- File: src\mygame\input\PlayerInput.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.input;
+
+/**
+ *
+ * @author rodri
+ */
+public class PlayerInput {
+    
+}
+
+
+
+--- File: src\mygame\level\Level.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.level;
+
+/**
+ *
+ * @author rodri
+ */
+public class Level {
+    
+}
+
+
+
+--- File: src\mygame\level\levels\Level1.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.level.levels;
+
+/**
+ *
+ * @author rodri
+ */
+public class Level1 {
+    
+}
+
+
+
+--- File: src\mygame\physics\CollisionGroups.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.physics;
+
+import com.jme3.bullet.collision.PhysicsCollisionObject;
+
+/**
+ *
+ * @author rodri
+ */
+public final class CollisionGroups {
+    private CollisionGroups() {} // no instanciable
+
+    public static final int WORLD = PhysicsCollisionObject.COLLISION_GROUP_01;
+    public static final int BALL  = PhysicsCollisionObject.COLLISION_GROUP_02;
+}
+
+
+
+--- File: src\mygame\player\Player.java ---
+package mygame.player;
+
+import com.jme3.anim.AnimComposer;
+import com.jme3.animation.AnimChannel;
+import com.jme3.animation.AnimControl;
+import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
+import com.jme3.bullet.BulletAppState;
+import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
+import com.jme3.bullet.control.CharacterControl;
+import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
+import com.jme3.math.Quaternion;
+import com.jme3.math.Vector3f;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
+import com.jme3.scene.shape.Box;
+import mygame.physics.CollisionGroups;
+
+/**
+ *
+ * @author rodri
+ */
+public class Player {
+    private Node playerNode = new Node("Player");
+    private SimpleApplication app;
+    private boolean moveForward, moveBackward, moveLeft, moveRight;
+    private float speed = 0.1f;
+    private float cameraYaw = 0f;
+    Spatial model;
+    CharacterControl control;
+    private AnimControl animControl;
+    private AnimChannel animChannel;
+    private String currentAnim = "";
+    private boolean firstPerson = true;
+    
+    
+    public Player(Application app, BulletAppState bullet) {
+        this.app = (SimpleApplication) app;
+        
+        
+        //Visual personaje
+        model = this.app.getAssetManager().loadModel("Models/Jaime/Jaime.j3o");
+        model.setLocalScale(2f);
+        model.setLocalTranslation(0f, -1.5f, 0f); // ajusta al centro de la cÃ¡psula
+        playerNode.attachChild(model);
+        
+        animControl = findAnimControl((Node) model);
+        if (animControl != null) {
+            animChannel = animControl.createChannel();
+            animChannel.setAnim("Idle");
+            // Imprime las animaciones disponibles
+            System.out.println("Animaciones: " + animControl.getAnimationNames());
+        } else {
+            System.out.println("No tiene AnimControl tampoco");
+        }
+        //FISICA personaje
+        CapsuleCollisionShape shape = new CapsuleCollisionShape(0.5f, 1.8f);
+
+        control = new CharacterControl(shape, 0.05f);
+
+        control.setJumpSpeed(10);
+        control.setFallSpeed(20);
+        control.setGravity(30);
+
+        control.setPhysicsLocation(new Vector3f(0, 5, 0));
+        
+        control.setCollisionGroup(CollisionGroups.WORLD);
+        control.setCollideWithGroups(CollisionGroups.WORLD | CollisionGroups.BALL);
+        
+        playerNode.addControl(control);
+        bullet.getPhysicsSpace().add(control);
+        
+        
+    }
+    
+    public void update() {
+
+        Vector3f direction = new Vector3f();
+
+        // Vectores relativos a donde mira la camara
+        float sinY = FastMath.sin(cameraYaw);
+        float cosY = FastMath.cos(cameraYaw);
+
+        Vector3f forward = new Vector3f(sinY, 0f, -cosY);
+        Vector3f right = new Vector3f(cosY, 0f, sinY);
+
+        if (moveForward) {
+            direction.addLocal(forward);
+        }
+        if (moveBackward) {
+            direction.addLocal(forward.negate());
+        }
+        if (moveRight) {
+            direction.addLocal(right);
+        }
+        if (moveLeft) {
+            direction.addLocal(right.negate());
+        }
+
+        if (direction.lengthSquared() > 0f) {
+            direction.normalizeLocal();
+        }
+        
+        boolean isMoving = moveForward || moveBackward || moveLeft || moveRight;
+        boolean isOnGround = control.onGround();
+
+        // LÃ³gica de animaciones
+        if (!isOnGround) {
+            playAnimation("JumpStart");
+        } else if (isMoving) {
+            playAnimation("Walk");
+        } else {
+            playAnimation("Idle");
+        }
+        
+        Quaternion rot = new Quaternion();
+        if (firstPerson) {
+            // El modelo sigue el yaw de la cÃ¡mara siempre
+            rot.fromAngleAxis(FastMath.PI - cameraYaw, Vector3f.UNIT_Y);
+            model.setLocalRotation(rot);
+        } else {
+            // Solo rota si hay movimiento, hacia donde se mueve
+            if (direction.lengthSquared() > 0f) {
+                float angle = FastMath.atan2(-direction.x, direction.z) + FastMath.PI;
+                rot.fromAngleAxis(-angle + FastMath.PI, Vector3f.UNIT_Y);
+                model.setLocalRotation(rot);
+            }
+        }
+
+        control.setWalkDirection(direction.multLocal(speed));
+    }
+    public Vector3f getPosition() {
+        return control.getPhysicsLocation();
+    }
+    
+    public void jump() {
+        control.jump();
+    }
+
+    public Node getNode() {
+        return playerNode;
+    }
+    
+    public void setCameraYaw(float yaw) {
+        this.cameraYaw = yaw;
+    }
+    
+    public void setForward(boolean value) {
+        moveForward = value;
+    }
+
+    public void setBackward(boolean value) {
+        moveBackward = value;
+    }
+
+    public void setLeft(boolean value) {
+        moveLeft = value;
+    }
+
+    public void setRight(boolean value) {
+        moveRight = value;
+    }
+    
+    public void setFirstPerson(boolean value) {
+        this.firstPerson = value;
+    }
+
+    private void playAnimation(String name) {
+        if (currentAnim.equals(name) || animChannel == null) {
+            return;
+        }
+        currentAnim = name;
+        animChannel.setAnim(name);
+    }
+    
+    private AnimControl findAnimControl(Node node) {
+        AnimControl control = node.getControl(AnimControl.class);
+        if (control != null) {
+            return control;
+        }
+
+        for (Spatial child : node.getChildren()) {
+            if (child instanceof Node) {
+                AnimControl found = findAnimControl((Node) child);
+                if (found != null) {
+                    return found;
+                }
+            }
+        }
+        return null;
+    }
+}
+
+
+
+--- File: src\mygame\player\PlayerController.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.player;
+
+/**
+ *
+ * @author rodri
+ */
+public class PlayerController {
+    
+}
+
+
+
+--- File: src\mygame\states\GameState.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.states;
+
+import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
+import com.jme3.app.state.BaseAppState;
+import com.jme3.bullet.BulletAppState;
+import com.jme3.light.AmbientLight;
+import com.jme3.light.DirectionalLight;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.FastMath;
+import com.jme3.math.Vector3f;
+import mygame.ball.BallFactory;
+import mygame.ball.BallSource;
+import mygame.ball.BallType;
+import mygame.camera.CameraController;
+import mygame.input.AnalogReceiver;
+import mygame.input.InputHandler;
+import mygame.input.InputMappings;
+import mygame.input.InputReceiver;
+import mygame.camera.FirstPersonCamera;
+import mygame.camera.ThirdPersonCamera;
+import mygame.player.Player;
+import mygame.world.World;
+
+
+
+public class GameState extends BaseAppState implements InputReceiver,AnalogReceiver{
+    private SimpleApplication app;
+    World world;
+    Player player;
+    InputHandler inputHandler;
+    boolean firstPerson = true;
+    CameraController cameraController;
+    FirstPersonCamera camF;
+    ThirdPersonCamera camT;
+    BulletAppState physics;
+    BallSource ballSource;
+    
+
+    @Override
+    protected void initialize(Application app) {
+        this.app = (SimpleApplication) app;
+        System.out.println("GameState inicializado");
+        //crea world
+        world = new World(app);
+        this.app.getRootNode().attachChild(world.getNode());
+        //creaPersonaje
+        physics = world.getPhysics();
+        player = new Player(app,physics);
+        this.app.getRootNode().attachChild(player.getNode());
+        //creaCamara
+        camT = new ThirdPersonCamera(app, () -> player.getPosition());
+        camF = new FirstPersonCamera(app, () -> player.getPosition());
+        
+        cameraController = camF;
+        //crear ballsource
+        initBallSource();
+        inputHandler = new InputHandler(app, this,this);
+        
+        
+        // Luz ambiental â€” ilumina todo parejo
+        AmbientLight ambient = new AmbientLight();
+        ambient.setColor(ColorRGBA.White.mult(0.4f));
+        this.app.getRootNode().addLight(ambient);
+
+        // Luz direccional â€” simula el sol, da sombras
+        DirectionalLight sun = new DirectionalLight();
+        sun.setDirection(new Vector3f(-0.5f, -1f, -0.5f).normalizeLocal());
+        sun.setColor(ColorRGBA.White.mult(0.8f));
+        this.app.getRootNode().addLight(sun);
+        
+    }
+    
+    private void initBallSource() {
+        BallFactory factory = new BallFactory(app.getAssetManager());
+
+        ballSource = new BallSource(
+                "MainSource",
+                factory,
+                this.app.getRootNode(),
+                physics.getPhysicsSpace(),
+                BallType.BASIC
+        );
+
+        ballSource.getNode().setLocalTranslation(0f, 8f, 0f);
+        ballSource.setMaxBalls(50);
+        ballSource.setAutoSpawn(true, 0.2f);
+
+        this.app.getRootNode().attachChild(ballSource.getNode());
+    }
+    
+    @Override
+    public void update(float tpf) {
+        // La camara primero para que el yaw este actualizado cuando el player lo use
+        cameraController.update(tpf);
+        player.setCameraYaw(cameraController.getYaw());
+        player.update();
+        ballSource.update(tpf);
+    }
+    
+    @Override
+    public void onAction(String name, boolean isPressed) {
+        if (name.equals(InputMappings.P_JUMP) && isPressed) {
+            player.jump();
+        }
+        if (name.equals(InputMappings.MOVE_FORWARD)) {
+            player.setForward(isPressed);
+        }
+        if (name.equals(InputMappings.MOVE_BACKWARD)) {
+            player.setBackward(isPressed);
+        }
+        if (name.equals(InputMappings.MOVE_LEFT)) {
+            player.setLeft(isPressed);
+        }
+        if (name.equals(InputMappings.MOVE_RIGHT)) {
+            player.setRight(isPressed);
+        }
+        if ((name.equals(InputMappings.CAM_SWITCH)&& isPressed)){
+            switchCamera();
+        }
+    }
+    
+    @Override
+    public void onAnalog(String name, float value) {
+        switch (name) {
+            case InputMappings.CAM_MOUSE_LEFT  -> cameraController.updateMouse( value, 0);
+            case InputMappings.CAM_MOUSE_RIGHT -> cameraController.updateMouse(-value, 0);
+            case InputMappings.CAM_MOUSE_UP    -> cameraController.updateMouse(0,  value);
+            case InputMappings.CAM_MOUSE_DOWN  -> cameraController.updateMouse(0, -value);
+        }
+
+    }
+
+    @Override
+    protected void cleanup(Application app) {
+        inputHandler.cleanup();
+    }
+
+    @Override
+    protected void onEnable() {
+    }
+
+    @Override
+    protected void onDisable() {
+    }
+
+    private void switchCamera() {
+        if (firstPerson) {
+            firstPerson = false;
+            // Le pasamos exactamente hacia donde miraba la primera persona
+            camT.setOrientation(camF.getYaw(), -camF.getPitch());
+            cameraController = camT;
+        } else {
+            firstPerson = true;
+            // Y viceversa al regresar
+            camF.setOrientation(camT.getYaw(), -camT.getPitch());
+            cameraController = camF;
+        }
+        player.setFirstPerson(firstPerson);
+    }
+
+    
+}
+
+
+
+--- File: src\mygame\states\MenuState.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.states;
+
+/**
+ *
+ * @author rodri
+ */
+public class MenuState {
+    
+}
+
+
+
+--- File: src\mygame\surface\Surface.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.surface;
+
+/**
+ *
+ * @author rodri
+ */
+public class Surface {
+    
+}
+
+
+
+--- File: src\mygame\surface\types\WallSurface.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.surface.types;
+
+/**
+ *
+ * @author rodri
+ */
+public class WallSurface {
+    
+}
+
+
+
+--- File: src\mygame\ui\HUD.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.ui;
+
+/**
+ *
+ * @author rodri
+ */
+public class HUD {
+    
+}
+
+
+
+--- File: src\mygame\ui\MenuUI.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.ui;
+
+/**
+ *
+ * @author rodri
+ */
+public class MenuUI {
+    
+}
+
+
+
+--- File: src\mygame\util\constants.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.util;
+
+/**
+ *
+ * @author rodri
+ */
+public class constants {
+    
+}
+
+
+
+--- File: src\mygame\world\World.java ---
+/*
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
+ * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
+ */
+package mygame.world;
+
+import com.jme3.app.Application;
+import com.jme3.app.SimpleApplication;
+import com.jme3.app.state.AppStateManager;
+import com.jme3.bullet.BulletAppState;
+import com.jme3.bullet.control.RigidBodyControl;
+import com.jme3.material.Material;
+import com.jme3.math.ColorRGBA;
+import com.jme3.math.Vector2f;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Node;
+import com.jme3.scene.shape.Box;
+import com.jme3.texture.Texture;
+import mygame.physics.CollisionGroups;
+
+/**
+ *
+ * @author rodri
+ */
+public class World {
+    private Node worldNode = new Node("World");
+    private SimpleApplication app;
+    private BulletAppState bulletAppState;
+
+    public World(Application app) {
+        this.app = (SimpleApplication) app;
+        
+        initPhysics();
+        
+        //Crea el suelo del mundo
+        createFloor();
+        
+        
+
+        
+    }
+
+    public Node getNode() {
+        return worldNode;
+    }
+    
+    private void initPhysics() {
+        bulletAppState = new BulletAppState();
+        
+        AppStateManager stateManager = app.getStateManager();
+        stateManager.attach(bulletAppState);
+    }
+    
+    private void createFloor(){
+        //Se crea el objeto VISUAL del suelo, sin fisica
+        Box box = new Box(100f, 0.1f, 100f);
+        Geometry floor = new Geometry("floor", box);
+        
+        Material mat1 = new Material(app.getAssetManager(), "Common/MatDefs/Light/Lighting.j3md");
+
+        Texture floorTex = app.getAssetManager().loadTexture("Common/Textures/MissingTexture.png");
+
+        // Tile de la textura para que no se vea estirada en 200x200 unidades
+        floorTex.setWrap(Texture.WrapMode.Repeat);
+        mat1.setTexture("DiffuseMap", floorTex);
+        
+        floor.getMesh().scaleTextureCoordinates(new Vector2f(50f,50f));
+        
+        
+        floor.setMaterial(mat1);
+        floor.setLocalTranslation(0, 0, 0);
+        
+        
+
+        //FÃ­sica (masa 0 = estÃ¡tico)
+        RigidBodyControl floorPhysics = new RigidBodyControl(0);
+        floorPhysics.setCollisionGroup(CollisionGroups.WORLD);
+        floorPhysics.setCollideWithGroups(CollisionGroups.WORLD | CollisionGroups.BALL);
+        //Se aÃ±ade la fisica al objeto visual
+        
+        floor.addControl(floorPhysics);
+
+        //Registrar en Bullet
+        bulletAppState.getPhysicsSpace().add(floorPhysics);
+        floorPhysics.setRestitution(0.8f);
+
+        //Agregar al mundo
+        worldNode.attachChild(floor);
+    }
+    public BulletAppState getPhysics(){
+        return bulletAppState;
+    }
+}
+

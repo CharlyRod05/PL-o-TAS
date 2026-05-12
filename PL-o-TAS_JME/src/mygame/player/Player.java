@@ -1,22 +1,15 @@
 package mygame.player;
 
-import com.jme3.anim.AnimComposer;
-import com.jme3.animation.AnimChannel;
-import com.jme3.animation.AnimControl;
+
 import com.jme3.app.Application;
 import com.jme3.app.SimpleApplication;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.bullet.collision.shapes.CapsuleCollisionShape;
 import com.jme3.bullet.control.CharacterControl;
-import com.jme3.material.Material;
-import com.jme3.math.ColorRGBA;
 import com.jme3.math.FastMath;
-import com.jme3.math.Quaternion;
 import com.jme3.math.Vector3f;
-import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.Spatial;
-import com.jme3.scene.shape.Box;
 import mygame.physics.CollisionGroups;
 
 /**
@@ -24,7 +17,61 @@ import mygame.physics.CollisionGroups;
  * @author rodri
  */
 public class Player {
-    private Node playerNode = new Node("Player");
+    private final Node playerNode = new Node("Player");
+    private final Spatial model;
+    private final CharacterControl control;
+    private boolean firstPerson = true;
+
+    public Player(Application app, BulletAppState bullet) {
+        SimpleApplication sa = (SimpleApplication) app;
+
+        model = sa.getAssetManager().loadModel("Models/Animated_Low_Poly_Dark_Knight_BAKED.glb");
+
+        
+        model.setLocalScale(0.4f);
+        model.setLocalTranslation(0f, -1.5f, 0f);
+        playerNode.attachChild(model);
+
+        CapsuleCollisionShape shape = new CapsuleCollisionShape(0.5f, 1.8f);
+        control = new CharacterControl(shape, 0.05f);
+        control.setJumpSpeed(10);
+        control.setFallSpeed(20);
+        control.setGravity(30);
+        control.setPhysicsLocation(new Vector3f(0, 5, 0));
+        control.setCollisionGroup(CollisionGroups.WORLD);
+        control.setCollideWithGroups(CollisionGroups.WORLD | CollisionGroups.BALL);
+
+        playerNode.addControl(control);
+        bullet.getPhysicsSpace().add(control);
+    }
+
+    public Node getNode()                 { return playerNode; }
+    public Vector3f getPosition()         { return control.getPhysicsLocation(); }
+    public CharacterControl getControl()  { return control; }
+    public Spatial getModel()             { return model; }
+    public boolean isFirstPerson()        { return firstPerson; }
+    public void setFirstPerson(boolean fp){ this.firstPerson = fp; }
+    
+    private void printTree(Spatial spatial, int level) {
+
+        String indent = " ".repeat(level * 2);
+
+        System.out.println(
+                indent
+                + spatial.getName()
+                + " | "
+                + spatial.getClass().getSimpleName()
+        );
+
+        if (spatial instanceof Node node) {
+
+            for (Spatial child : node.getChildren()) {
+                printTree(child, level + 1);
+            }
+        }
+    }
+}
+/*    private Node playerNode = new Node("Player");
     private SimpleApplication app;
     private boolean moveForward, moveBackward, moveLeft, moveRight;
     private float speed = 0.1f;
@@ -192,4 +239,4 @@ public class Player {
         }
         return null;
     }
-}
+}*/

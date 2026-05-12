@@ -23,107 +23,109 @@ import mygame.input.InputMappings;
 import mygame.input.InputReceiver;
 import mygame.camera.FirstPersonCamera;
 import mygame.camera.ThirdPersonCamera;
+import mygame.player.BuildController;
+import mygame.player.InputPlayer;
 import mygame.player.Player;
+import mygame.player.PlayerController;
+import mygame.player.WalkController;
 import mygame.world.World;
 
 
 
 public class GameState extends BaseAppState implements InputReceiver,AnalogReceiver{
     private SimpleApplication app;
-    World world;
-    Player player;
-    InputHandler inputHandler;
-    boolean firstPerson = true;
-    CameraController cameraController;
-    FirstPersonCamera camF;
-    ThirdPersonCamera camT;
-    BulletAppState physics;
-    BallSource ballSource;
-    
+    private World world;
+    private Player player;
+    private InputHandler inputHandler;
+    private boolean firstPerson = true;
+    private CameraController cameraController;
+    private FirstPersonCamera camF;
+    private ThirdPersonCamera camT;
+    private BulletAppState physics;
+    private BallSource ballSource;
+
+    // ECS ligero
+    private InputPlayer inputPlayer;
+    private PlayerController currentController;
 
     @Override
     protected void initialize(Application app) {
         this.app = (SimpleApplication) app;
-        System.out.println("GameState inicializado");
-        //crea world
+
+        // Mundo
         world = new World(app);
         this.app.getRootNode().attachChild(world.getNode());
-        //creaPersonaje
         physics = world.getPhysics();
-        player = new Player(app,physics);
+
+        // Jugador
+        player = new Player(app, physics);
         this.app.getRootNode().attachChild(player.getNode());
-        //creaCamara
+
+        // Cámaras
         camT = new ThirdPersonCamera(app, () -> player.getPosition());
         camF = new FirstPersonCamera(app, () -> player.getPosition());
-        
         cameraController = camF;
-        //crear ballsource
-        initBallSource();
-        inputHandler = new InputHandler(app, this,this);
-        
-        
-        // Luz ambiental — ilumina todo parejo
+
+        // Controlador inicial (modo exploración)
+        currentController = new WalkController(player);
+
+        // Snapshot de inputs
+        inputPlayer = new InputPlayer();
+
+        // Manejador de inputs
+        inputHandler = new InputHandler(app, this, this);
+
+        // Luces
         AmbientLight ambient = new AmbientLight();
         ambient.setColor(ColorRGBA.White.mult(0.4f));
         this.app.getRootNode().addLight(ambient);
-
-        // Luz direccional — simula el sol, da sombras
         DirectionalLight sun = new DirectionalLight();
         sun.setDirection(new Vector3f(-0.5f, -1f, -0.5f).normalizeLocal());
         sun.setColor(ColorRGBA.White.mult(0.8f));
         this.app.getRootNode().addLight(sun);
-        
+
+        // Pelotas
+        initBallSource();
     }
-    
+
     private void initBallSource() {
         BallFactory factory = new BallFactory(app.getAssetManager());
-
-        ballSource = new BallSource(
-                "MainSource",
-                factory,
-                this.app.getRootNode(),
-                physics.getPhysicsSpace(),
-                BallType.BASIC
-        );
-
+        ballSource = new BallSource("MainSource", factory, this.app.getRootNode(), physics.getPhysicsSpace(), BallType.BASIC);
         ballSource.getNode().setLocalTranslation(0f, 8f, 0f);
         ballSource.setMaxBalls(50);
         ballSource.setAutoSpawn(true, 0.2f);
-
         this.app.getRootNode().attachChild(ballSource.getNode());
     }
-    
+
     @Override
     public void update(float tpf) {
-        // La camara primero para que el yaw este actualizado cuando el player lo use
+
+        // Actualizar cámara y obtener orientación
         cameraController.update(tpf);
-        player.setCameraYaw(cameraController.getYaw());
-        player.update();
+        float yaw = cameraController.getYaw();
+        player.setFirstPerson(firstPerson);
+
+        // El controlador activo procesa los inputs y mueve/actualiza al jugador
+        currentController.update(inputPlayer, tpf, yaw);
+
+        // Pelotas
         ballSource.update(tpf);
     }
-    
+
+    // --- InputReceiver ---
     @Override
     public void onAction(String name, boolean isPressed) {
-        if (name.equals(InputMappings.P_JUMP) && isPressed) {
-            player.jump();
-        }
-        if (name.equals(InputMappings.MOVE_FORWARD)) {
-            player.setForward(isPressed);
-        }
-        if (name.equals(InputMappings.MOVE_BACKWARD)) {
-            player.setBackward(isPressed);
-        }
-        if (name.equals(InputMappings.MOVE_LEFT)) {
-            player.setLeft(isPressed);
-        }
-        if (name.equals(InputMappings.MOVE_RIGHT)) {
-            player.setRight(isPressed);
-        }
-        if ((name.equals(InputMappings.CAM_SWITCH)&& isPressed)){
-            switchCamera();
-        }
+        if (name.equals(InputMappings.P_JUMP) && isPressed)       inputPlayer.jump = true;
+        if (name.equals(InputMappings.MOVE_FORWARD))              inputPlayer.forward = isPressed;
+        if (name.equals(InputMappings.MOVE_BACKWARD))             inputPlayer.backward = isPressed;
+        if (name.equals(InputMappings.MOVE_LEFT))                 inputPlayer.left = isPressed;
+        if (name.equals(InputMappings.MOVE_RIGHT))                inputPlayer.right = isPressed;
+        if (name.equals(InputMappings.CAM_SWITCH) && isPressed)   switchCamera();
+        //if (name.equals(InputMappings.BUILD_MODE) && isPressed)   toggleBuildMode();
+        // Acciones de construcción (ratón, etc.) se asignarán más tarde a placeBlock/breakBlock
     }
-    
+
+    // --- AnalogReceiver ---
     @Override
     public void onAnalog(String name, float value) {
         switch (name) {
@@ -132,7 +134,28 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
             case InputMappings.CAM_MOUSE_UP    -> cameraController.updateMouse(0,  value);
             case InputMappings.CAM_MOUSE_DOWN  -> cameraController.updateMouse(0, -value);
         }
+    }
 
+    private void switchCamera() {
+        if (firstPerson) {
+            firstPerson = false;
+            camT.setOrientation(camF.getYaw(), -camF.getPitch());
+            cameraController = camT;
+        } else {
+            firstPerson = true;
+            camF.setOrientation(camT.getYaw(), -camT.getPitch());
+            cameraController = camF;
+        }
+    }
+
+    private void toggleBuildMode() {
+        if (currentController instanceof WalkController) {
+            currentController = new BuildController(player);
+            System.out.println("Modo construcción activado");
+        } else {
+            currentController = new WalkController(player);
+            System.out.println("Modo exploración activado");
+        }
     }
 
     @Override
@@ -140,28 +163,7 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         inputHandler.cleanup();
     }
 
-    @Override
-    protected void onEnable() {
-    }
-
-    @Override
-    protected void onDisable() {
-    }
-
-    private void switchCamera() {
-        if (firstPerson) {
-            firstPerson = false;
-            // Le pasamos exactamente hacia donde miraba la primera persona
-            camT.setOrientation(camF.getYaw(), -camF.getPitch());
-            cameraController = camT;
-        } else {
-            firstPerson = true;
-            // Y viceversa al regresar
-            camF.setOrientation(camT.getYaw(), -camT.getPitch());
-            cameraController = camF;
-        }
-        player.setFirstPerson(firstPerson);
-    }
-
-    
+    @Override protected void onEnable() {}
+    @Override protected void onDisable() {}
 }
+

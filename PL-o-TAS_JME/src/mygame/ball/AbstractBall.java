@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package mygame.ball;
 
 import com.jme3.asset.AssetManager;
@@ -64,7 +60,6 @@ public abstract class AbstractBall {
         parentNode.detachChild(ballNode);
     }
 
-    // ── igual que tu Player ──
     public Node getNode() {
         return ballNode;
     }
