@@ -1,28 +1,22 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package mygame.player;
 
-/**
- *
- * @author rodri
- */
 public class InputPlayer {
-    public boolean forward;
-    public boolean backward;
-    public boolean left;
-    public boolean right;
-    public boolean jump;
+    public boolean forward, backward, left, right, jump;
     public boolean buildMode;
     public boolean placeBlock;
     public boolean breakBlock;
+    public boolean buildToggle;
+    public boolean cycleType;
+    public boolean scrollUp;
+    public boolean scrollDown;
+    public boolean releaseBall;
+    public boolean retry;
+    public boolean place;
+    public boolean remove;
 
     public void reset() {
-        //forward = backward = left = right = false;
-        jump = false;
-        buildMode = false;
-        placeBlock = false;
-        breakBlock = false;
+        jump = buildMode = placeBlock = breakBlock = false;
+        buildToggle = cycleType = scrollUp = scrollDown = false;
+        releaseBall = retry = place = remove = false;
     }
 }

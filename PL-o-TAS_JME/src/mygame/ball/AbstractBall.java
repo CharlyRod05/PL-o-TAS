@@ -42,7 +42,8 @@ public abstract class AbstractBall {
         ballNode.addControl(physicsControl);
 
         physicsControl.setCollisionGroup(CollisionGroups.BALL);
-        physicsControl.setCollideWithGroups(CollisionGroups.WORLD);
+        physicsControl.setCollideWithGroups(
+                CollisionGroups.WORLD | CollisionGroups.PLATFORM | CollisionGroups.OBSTACLE);
     }
 
     public void addToPhysicsSpace(PhysicsSpace space) {
