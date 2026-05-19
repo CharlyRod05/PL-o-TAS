@@ -45,9 +45,6 @@ public class PlayerAnimation {
         this.model = model;
         
         this.composer = ensureAnimComposer(model);
-        for (String anim : composer.getAnimClipsNames()) {
-            System.out.println(anim);
-        }
         /*
          * Crea la capa de salto con máscara null (afecta a todos los huesos).
          * makeLayer() en JME 3.8 devuelve void; guardamos el nombre como

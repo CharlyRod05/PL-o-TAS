@@ -38,6 +38,8 @@ public abstract class Surface {
 
     public void attachToWorld(Node worldNode, PhysicsSpace space) {
         worldNode.attachChild(surfaceNode);
+        physicsControl.setPhysicsLocation(surfaceNode.getLocalTranslation());
+        physicsControl.setPhysicsRotation(surfaceNode.getLocalRotation());
         space.add(physicsControl);
     }
 

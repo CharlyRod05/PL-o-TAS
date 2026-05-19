@@ -6,6 +6,8 @@ import com.jme3.app.state.BaseAppState;
 import com.jme3.bullet.BulletAppState;
 import com.jme3.collision.CollisionResult;
 import com.jme3.collision.CollisionResults;
+import com.jme3.scene.Geometry;
+import com.jme3.scene.Spatial;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
@@ -44,6 +46,7 @@ public class BuildState extends BaseAppState {
         this.level = level;
         this.physics = physics;
         this.rootNode = rootNode;
+        resetInventory();
     }
 
     @Override
@@ -90,12 +93,12 @@ public class BuildState extends BaseAppState {
         Ray ray = new Ray(app.getCamera().getLocation(), app.getCamera().getDirection());
         rootNode.collideWith(ray, results);
 
-        if (results.size() == 0) {
+        CollisionResult hit = firstValidHit(results);
+        if (hit == null) {
             ghostSurface.getNode().setCullHint(com.jme3.scene.Spatial.CullHint.Always);
             return;
         }
 
-        CollisionResult hit = results.getClosestCollision();
         String hitName = hit.getGeometry().getName();
         if (hitName.startsWith("FlatGeom") || hitName.startsWith("RampGeom") ||
             hitName.startsWith("BouncerGeom") || hitName.startsWith("LeftGeom") ||
@@ -151,9 +154,9 @@ public class BuildState extends BaseAppState {
         CollisionResults results = new CollisionResults();
         Ray ray = new Ray(app.getCamera().getLocation(), app.getCamera().getDirection());
         rootNode.collideWith(ray, results);
-        if (results.size() == 0) return;
+        CollisionResult hit = firstValidHit(results);
+        if (hit == null) return;
 
-        CollisionResult hit = results.getClosestCollision();
         String hitName = hit.getGeometry().getName();
         if (hitName.startsWith("FlatGeom") || hitName.startsWith("RampGeom") ||
             hitName.startsWith("BouncerGeom") || hitName.startsWith("LeftGeom") ||
@@ -174,9 +177,8 @@ public class BuildState extends BaseAppState {
         CollisionResults results = new CollisionResults();
         Ray ray = new Ray(app.getCamera().getLocation(), app.getCamera().getDirection());
         rootNode.collideWith(ray, results);
-        if (results.size() == 0) return;
-
-        CollisionResult hit = results.getClosestCollision();
+        CollisionResult hit = firstValidHit(results);
+        if (hit == null) return;
         String hitName = hit.getGeometry().getName();
         int type = nameToType(hitName);
         if (type < 0) return;
@@ -224,6 +226,25 @@ public class BuildState extends BaseAppState {
             case BOUNCER -> new BouncerPlatform(app);
             default      -> new FunnelPlatform(app);
         };
+    }
+
+    private CollisionResult firstValidHit(CollisionResults results) {
+        Node ghostNode = ghostSurface != null ? ghostSurface.getNode() : null;
+        for (int i = 0; i < results.size(); i++) {
+            CollisionResult r = results.getCollision(i);
+            if (!isDescendantOf(r.getGeometry(), ghostNode)) return r;
+        }
+        return null;
+    }
+
+    private static boolean isDescendantOf(Spatial s, Node ancestor) {
+        if (ancestor == null) return false;
+        Spatial cur = s;
+        while (cur != null) {
+            if (cur == ancestor) return true;
+            cur = cur.getParent();
+        }
+        return false;
     }
 
     public int[] getRemaining()  { return remaining; }
