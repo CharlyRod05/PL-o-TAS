@@ -135,10 +135,8 @@ public class PlayState extends BaseAppState implements PhysicsCollisionListener 
     }
 
     public void onRetry() {
-        if (waitingRetry) {
-            waitingRetry = false;
-            listener.onPlayResult(PhaseResult.FAIL);
-        }
+        listener.onPlayResult(PhaseResult.FAIL);
+
     }
 
     @Override

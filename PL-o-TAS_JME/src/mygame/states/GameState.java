@@ -25,6 +25,7 @@ import mygame.player.Player;
 import mygame.player.PlayerController;
 import mygame.player.WalkController;
 import mygame.ui.HUD;
+import mygame.ui.HUDDebug;
 import mygame.world.World;
 
 public class GameState extends BaseAppState
@@ -41,6 +42,7 @@ public class GameState extends BaseAppState
     private BulletAppState physics;
     private InputPlayer inputPlayer;
     private PlayerController currentController;
+    private HUDDebug debugHUD;
 
     private Level currentLevel;
     private int levelIndex = 0;
@@ -77,6 +79,7 @@ public class GameState extends BaseAppState
         this.app.getRootNode().addLight(sun);
 
         hud = new HUD(app);
+        debugHUD = new HUDDebug(app);
 
         loadLevel(0);
     }
@@ -121,6 +124,7 @@ public class GameState extends BaseAppState
         if (buildState != null && buildState.isEnabled()) {
             hud.showBuildHUD(currentLevel ,buildState.getRemaining(), buildState.isBuildMode());
         }
+        debugHUD.update(this);
     }
 
     @Override
@@ -203,4 +207,50 @@ public class GameState extends BaseAppState
 
     @Override protected void onEnable() {}
     @Override protected void onDisable() {}
+    
+    
+    public Player getPlayer() {
+        return player;
+    }
+
+    public Level getCurrentLevel() {
+        return currentLevel;
+    }
+
+    public boolean isFirstPerson() {
+        return firstPerson;
+    }
+
+    public PlayerController getCurrentController() {
+        return currentController;
+    }
+
+    public BuildState getBuildState() {
+        return buildState;
+    }
+    
+    //DEBUG
+    
+    public String getAttachedStatesDebug() {
+
+        StringBuilder sb = new StringBuilder();
+
+        if (buildState != null) {
+            sb.append(buildState.getClass().getSimpleName())
+                    .append(buildState.isEnabled() ? " [ENABLED]" : " [DISABLED]")
+                    .append("\n");
+        }
+
+        if (playState != null) {
+            sb.append(playState.getClass().getSimpleName())
+                    .append(playState.isEnabled() ? " [ENABLED]" : " [DISABLED]")
+                    .append("\n");
+        }
+
+        sb.append(this.getClass().getSimpleName())
+                .append(this.isEnabled() ? " [ENABLED]" : " [DISABLED]")
+                .append("\n");
+
+        return sb.toString();
+    }
 }

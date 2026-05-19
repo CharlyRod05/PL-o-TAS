@@ -15,8 +15,8 @@ public class Level1 extends Level {
 
         flatCount    = 4;
         rampCount    = 2;
-        bouncerCount = 0;
-        funnelCount  = 0;
+        bouncerCount = 3;
+        funnelCount  = 3;
 
         SpikeObstacle spike1 = new SpikeObstacle(app);
         spike1.setPosition(new Vector3f(4f, 1f, 0f));
