@@ -119,7 +119,7 @@ public class GameState extends BaseAppState
         inputPlayer.reset();
 
         if (buildState != null && buildState.isEnabled()) {
-            hud.updateBuildCounter(buildState.getRemaining(), buildState.isBuildMode());
+            hud.showBuildHUD(currentLevel ,buildState.getRemaining(), buildState.isBuildMode());
         }
     }
 
