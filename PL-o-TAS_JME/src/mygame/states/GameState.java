@@ -1,7 +1,3 @@
-/*
- * Click nbfs://nbhost/SystemFileSystem/Templates/Licenses/license-default.txt to change this license
- * Click nbfs://nbhost/SystemFileSystem/Templates/Classes/Class.java to edit this template
- */
 package mygame.states;
 
 import com.jme3.app.Application;
@@ -11,28 +7,29 @@ import com.jme3.bullet.BulletAppState;
 import com.jme3.light.AmbientLight;
 import com.jme3.light.DirectionalLight;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.FastMath;
 import com.jme3.math.Vector3f;
-import mygame.ball.BallFactory;
-import mygame.ball.BallSource;
-import mygame.ball.BallType;
 import mygame.camera.CameraController;
+import mygame.camera.FirstPersonCamera;
+import mygame.camera.ThirdPersonCamera;
 import mygame.input.AnalogReceiver;
 import mygame.input.InputHandler;
 import mygame.input.InputMappings;
 import mygame.input.InputReceiver;
-import mygame.camera.FirstPersonCamera;
-import mygame.camera.ThirdPersonCamera;
+import mygame.level.Level;
+import mygame.level.levels.Level1;
+import mygame.level.levels.Level2;
+import mygame.level.levels.Level3;
 import mygame.player.BuildController;
 import mygame.player.InputPlayer;
 import mygame.player.Player;
 import mygame.player.PlayerController;
 import mygame.player.WalkController;
+import mygame.ui.HUD;
 import mygame.world.World;
 
+public class GameState extends BaseAppState
+        implements InputReceiver, AnalogReceiver, PhaseListener {
 
-
-public class GameState extends BaseAppState implements InputReceiver,AnalogReceiver{
     private SimpleApplication app;
     private World world;
     private Player player;
@@ -42,40 +39,35 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     private FirstPersonCamera camF;
     private ThirdPersonCamera camT;
     private BulletAppState physics;
-    private BallSource ballSource;
-
-    // ECS ligero
     private InputPlayer inputPlayer;
     private PlayerController currentController;
+
+    private Level currentLevel;
+    private int levelIndex = 0;
+
+    private BuildState buildState;
+    private PlayState playState;
+    private HUD hud;
 
     @Override
     protected void initialize(Application app) {
         this.app = (SimpleApplication) app;
 
-        // Mundo
         world = new World(app);
         this.app.getRootNode().attachChild(world.getNode());
         physics = world.getPhysics();
 
-        // Jugador
         player = new Player(app, physics);
         this.app.getRootNode().attachChild(player.getNode());
 
-        // Cámaras
         camT = new ThirdPersonCamera(app, () -> player.getPosition());
         camF = new FirstPersonCamera(app, () -> player.getPosition());
         cameraController = camF;
 
-        // Controlador inicial (modo exploración)
         currentController = new WalkController(player);
-
-        // Snapshot de inputs
         inputPlayer = new InputPlayer();
-
-        // Manejador de inputs
         inputHandler = new InputHandler(app, this, this);
 
-        // Luces
         AmbientLight ambient = new AmbientLight();
         ambient.setColor(ColorRGBA.White.mult(0.4f));
         this.app.getRootNode().addLight(ambient);
@@ -84,48 +76,69 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         sun.setColor(ColorRGBA.White.mult(0.8f));
         this.app.getRootNode().addLight(sun);
 
-        // Pelotas
-        initBallSource();
+        hud = new HUD(app);
+
+        loadLevel(0);
     }
 
-    private void initBallSource() {
-        BallFactory factory = new BallFactory(app.getAssetManager());
-        ballSource = new BallSource("MainSource", factory, this.app.getRootNode(), physics.getPhysicsSpace(), BallType.BASIC);
-        ballSource.getNode().setLocalTranslation(0f, 8f, 0f);
-        ballSource.setMaxBalls(50);
-        ballSource.setAutoSpawn(true, 0.2f);
-        this.app.getRootNode().attachChild(ballSource.getNode());
+    private Level createLevel(int index) {
+        Level l = switch (index % 3) {
+            case 0 -> new Level1();
+            case 1 -> new Level2();
+            default -> new Level3();
+        };
+        l.setup(app);
+        return l;
+    }
+
+    private void loadLevel(int index) {
+        levelIndex = index;
+        currentLevel = createLevel(index);
+        currentLevel.attachToWorld(this.app.getRootNode(), physics.getPhysicsSpace());
+
+        if (buildState == null) {
+            buildState = new BuildState(this, currentLevel,
+                    physics, this.app.getRootNode());
+            getStateManager().attach(buildState);
+        } else {
+            buildState.setLevel(currentLevel);
+            buildState.clearPlatforms();
+            if (!buildState.isEnabled()) getStateManager().attach(buildState);
+        }
+
+        currentController = new BuildController(player);
+        hud.showBuildHUD(currentLevel, buildState.getRemaining(), buildState.isBuildMode());
     }
 
     @Override
     public void update(float tpf) {
-
-        // Actualizar cámara y obtener orientación
         cameraController.update(tpf);
         float yaw = cameraController.getYaw();
         player.setFirstPerson(firstPerson);
-
-        // El controlador activo procesa los inputs y mueve/actualiza al jugador
         currentController.update(inputPlayer, tpf, yaw);
+        inputPlayer.reset();
 
-        // Pelotas
-        ballSource.update(tpf);
+        if (buildState != null && buildState.isEnabled()) {
+            hud.updateBuildCounter(buildState.getRemaining(), buildState.isBuildMode());
+        }
     }
 
-    // --- InputReceiver ---
     @Override
     public void onAction(String name, boolean isPressed) {
-        if (name.equals(InputMappings.P_JUMP) && isPressed)       inputPlayer.jump = true;
-        if (name.equals(InputMappings.MOVE_FORWARD))              inputPlayer.forward = isPressed;
-        if (name.equals(InputMappings.MOVE_BACKWARD))             inputPlayer.backward = isPressed;
-        if (name.equals(InputMappings.MOVE_LEFT))                 inputPlayer.left = isPressed;
-        if (name.equals(InputMappings.MOVE_RIGHT))                inputPlayer.right = isPressed;
-        if (name.equals(InputMappings.CAM_SWITCH) && isPressed)   switchCamera();
-        //if (name.equals(InputMappings.BUILD_MODE) && isPressed)   toggleBuildMode();
-        // Acciones de construcción (ratón, etc.) se asignarán más tarde a placeBlock/breakBlock
+        if (name.equals(InputMappings.P_JUMP) && isPressed)      inputPlayer.jump = true;
+        if (name.equals(InputMappings.MOVE_FORWARD))             inputPlayer.forward = isPressed;
+        if (name.equals(InputMappings.MOVE_BACKWARD))            inputPlayer.backward = isPressed;
+        if (name.equals(InputMappings.MOVE_LEFT))                inputPlayer.left = isPressed;
+        if (name.equals(InputMappings.MOVE_RIGHT))               inputPlayer.right = isPressed;
+        if (name.equals(InputMappings.CAM_SWITCH) && isPressed)  switchCamera();
+        if (buildState != null && buildState.isEnabled()) {
+            buildState.onAction(name, isPressed);
+        }
+        if (name.equals(InputMappings.RETRY) && isPressed) {
+            if (playState != null) playState.onRetry();
+        }
     }
 
-    // --- AnalogReceiver ---
     @Override
     public void onAnalog(String name, float value) {
         switch (name) {
@@ -133,6 +146,41 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
             case InputMappings.CAM_MOUSE_RIGHT -> cameraController.updateMouse(-value, 0);
             case InputMappings.CAM_MOUSE_UP    -> cameraController.updateMouse(0,  value);
             case InputMappings.CAM_MOUSE_DOWN  -> cameraController.updateMouse(0, -value);
+            case InputMappings.SCROLL_UP   -> { if (buildState != null) buildState.onScroll(true);  }
+            case InputMappings.SCROLL_DOWN -> { if (buildState != null) buildState.onScroll(false); }
+        }
+    }
+
+    @Override
+    public void onBuildComplete() {
+        if (buildState != null) getStateManager().detach(buildState);
+        playState = new PlayState(this, currentLevel, physics, app.getRootNode(), hud);
+        getStateManager().attach(playState);
+        currentController = new WalkController(player);
+        hud.showPlayHUD();
+    }
+
+    @Override
+    public void onPlayResult(PhaseResult result) {
+        if (playState != null) {
+            getStateManager().detach(playState);
+            playState = null;
+        }
+
+        if (result == PhaseResult.WIN) {
+            int nextIndex = levelIndex + 1;
+            if (nextIndex >= 3) {
+                hud.showCompletedMessage();
+                currentLevel.detachFromWorld(app.getRootNode(), physics.getPhysicsSpace());
+                loadLevel(0);
+            } else {
+                currentLevel.detachFromWorld(app.getRootNode(), physics.getPhysicsSpace());
+                loadLevel(nextIndex);
+            }
+        } else {
+            currentController = new BuildController(player);
+            getStateManager().attach(buildState);
+            hud.showBuildHUD(currentLevel, buildState.getRemaining(), buildState.isBuildMode());
         }
     }
 
@@ -148,16 +196,6 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
         }
     }
 
-    private void toggleBuildMode() {
-        if (currentController instanceof WalkController) {
-            currentController = new BuildController(player);
-            System.out.println("Modo construcción activado");
-        } else {
-            currentController = new WalkController(player);
-            System.out.println("Modo exploración activado");
-        }
-    }
-
     @Override
     protected void cleanup(Application app) {
         inputHandler.cleanup();
@@ -166,4 +204,3 @@ public class GameState extends BaseAppState implements InputReceiver,AnalogRecei
     @Override protected void onEnable() {}
     @Override protected void onDisable() {}
 }
-
